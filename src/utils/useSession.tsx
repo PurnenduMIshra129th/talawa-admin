@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { errorHandler } from 'utils/errorHandler';
+import useLocalStorage from './useLocalstorage';
 
 type UseSessionReturnType = {
   startSession: () => void;
@@ -33,6 +34,7 @@ const useSession = (): UseSessionReturnType => {
   let startTime: number;
   let timeoutDuration: number;
   const [sessionTimeout, setSessionTimeout] = useState<number>(30);
+
   // const sessionTimeout = 30;
   const sessionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -49,7 +51,11 @@ const useSession = (): UseSessionReturnType => {
     } else {
       const sessionTimeoutData = data?.community;
       if (sessionTimeoutData) {
-        setSessionTimeout(sessionTimeoutData.inactivityTimeoutDuration);
+        setSessionTimeout(
+          sessionTimeoutData.inactivityTimeoutDuration
+            ? sessionTimeoutData.inactivityTimeoutDuration
+            : sessionTimeout,
+        );
       }
     }
   }, [data, queryError]);
@@ -65,13 +71,22 @@ const useSession = (): UseSessionReturnType => {
     window.removeEventListener('keydown', extendSession);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
   };
-
   const handleLogout = async (): Promise<void> => {
     try {
-      await revokeRefreshToken();
+      const { getItem } = useLocalStorage();
+      const userId = getItem('id');
+      if (!userId) {
+        console.error('User ID is missing.');
+        return;
+      }
+      await revokeRefreshToken({
+        variables: {
+          input: { id: userId },
+        },
+      });
     } catch (error) {
       console.error('Error revoking refresh token:', error);
-      // toast.error('Failed to revoke session. Please try again.');
+      // toast.error("Failed to revoke session. Please try again.");
     }
     localStorage.clear();
     endSession();
@@ -90,7 +105,6 @@ const useSession = (): UseSessionReturnType => {
 
     timeoutDuration = sessionTimeoutInMilliseconds;
     startTime = Date.now();
-
     warningTimerRef.current = setTimeout(() => {
       toast.warning(tCommon('sessionWarning'));
     }, warningTimeInMilliseconds);
