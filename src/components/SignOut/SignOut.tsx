@@ -5,6 +5,7 @@ import useSession from 'utils/useSession';
 import { REVOKE_REFRESH_TOKEN } from 'GraphQl/Mutations/mutations';
 import { useMutation } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
+import useLocalStorage from 'utils/useLocalstorage';
 
 /**
  * Renders a sign out button.
@@ -27,9 +28,18 @@ const SignOut = (): JSX.Element => {
       endSession();
       navigate('/');
     };
-
+    const { getItem } = useLocalStorage();
+    const userId = getItem('id');
+    if (!userId) {
+      console.error('User ID is missing.');
+      return;
+    }
     try {
-      await revokeRefreshToken();
+      await revokeRefreshToken({
+        variables: {
+          input: { id: userId },
+        },
+      });
       handleSignOut();
     } catch (error) {
       console.error('Error revoking refresh token:', error);
@@ -38,7 +48,11 @@ const SignOut = (): JSX.Element => {
       );
       if (retryRevocation) {
         try {
-          await revokeRefreshToken();
+          await revokeRefreshToken({
+            variables: {
+              input: { id: userId },
+            },
+          });
           handleSignOut();
         } catch {
           // Proceed with local logout if retry fails
